@@ -1,3 +1,11 @@
+---
+title: Customer Support Env
+emoji: 🏢
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
 # 👨‍💻 Building the "Customer Support Env": A Developer's Process
 
 Hey there! If you're reading this, you are probably checking out my OpenEnv project for the Meta/Hugging Face Hackathon. 
