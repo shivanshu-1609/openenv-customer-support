@@ -65,8 +65,7 @@ async def run_episode(env: SupportEnv, oai_client: AsyncOpenAI):
 
 async def main():
     if not os.environ.get("OPENAI_API_KEY"):
-        print("No OPENAI_API_KEY found. Outputting mock scores to pass validation.")
-        print(json.dumps({"scores": {"task1": 1.0, "task2": 1.0, "task3": 1.0}}))
+        print("OPENAI_API_KEY is required to run baseline.py.")
         return
 
     oai_client = AsyncOpenAI()
@@ -78,8 +77,7 @@ async def main():
                 score = await run_episode(env, oai_client)
                 scores.append(score)
     except Exception as e:
-        print(f"Connection to Env failed. Printing mock scores. Error: {e}")
-        print(json.dumps({"scores": {"task1": 1.0, "task2": 1.0, "task3": 1.0}}))
+        print(f"Connection to Env failed. Error: {e}")
         return
         
     print(f"Final Average Score: {sum(scores)/max(len(scores), 1)}")

@@ -1,15 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
-"""
-FastAPI application for the Customer Support Environment.
-"""
+"""FastAPI application for the Customer Support Environment."""
 
-from fastapi import Request
-import threading
-import subprocess
 import os
-import json
+import subprocess
 
 try:
     from openenv.core.env_server.http_server import create_app
@@ -18,9 +13,11 @@ except Exception as e:
 
 try:
     from ..models import SupportAction, SupportObservation
+    from ..submission_agent import average_score, evaluate_all_tasks
     from .support_env_environment import SupportEnvironment, TASKS
 except ImportError:
     from models import SupportAction, SupportObservation
+    from submission_agent import average_score, evaluate_all_tasks
     from server.support_env_environment import SupportEnvironment, TASKS
 
 app = create_app(
@@ -31,8 +28,6 @@ app = create_app(
     max_concurrent_envs=10,
 )
 
-LAST_SCORE = 1.0
-
 @app.get("/tasks")
 def get_tasks():
     return {
@@ -42,9 +37,8 @@ def get_tasks():
 
 @app.get("/grader")
 def get_grader():
-    # In a real deployed environment, this would extract the score of the latest WebSocket session.
-    # We return the LAST_SCORE or a fixed 1.0 for the pre-submission check.
-    return {"score": LAST_SCORE}
+    scores = evaluate_all_tasks()
+    return {"score": average_score(scores), "scores": scores}
 
 @app.get("/baseline")
 def run_baseline():
