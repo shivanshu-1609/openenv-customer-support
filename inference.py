@@ -12,9 +12,7 @@ except ImportError:
     from server.support_env_environment import SupportEnvironment, TASKS
 
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
-API_KEY = os.getenv("API_KEY")
 
 # Optional - if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
@@ -39,9 +37,9 @@ Choose:
 
 
 def build_openai_client() -> OpenAI | None:
-    if not API_KEY:
-        return None
-    return OpenAI(base_url=API_BASE_URL, api_key=API_KEY, timeout=15.0)
+    api_base_url = os.environ["API_BASE_URL"]
+    api_key = os.environ["API_KEY"]
+    return OpenAI(base_url=api_base_url, api_key=api_key, timeout=15.0)
 
 
 def extract_order_id(ticket_text: str) -> str:
@@ -158,7 +156,11 @@ def run_task_trace(client: OpenAI | None, task_index: int) -> dict:
 
 
 def main() -> None:
-    client = build_openai_client()
+    client = None
+    try:
+        client = build_openai_client()
+    except KeyError:
+        client = None
     scores: dict[str, float] = {}
 
     for task_index in range(len(TASKS)):
