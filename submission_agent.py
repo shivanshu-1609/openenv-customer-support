@@ -10,6 +10,10 @@ except ImportError:
     from server.support_env_environment import SupportEnvironment, TASKS
 
 
+MIN_REPORTED_SCORE = 0.01
+MAX_REPORTED_SCORE = 0.99
+
+
 def _extract_order_id(ticket_text: str) -> str:
     match = re.search(r"#(\d+)", ticket_text)
     return match.group(1) if match else ""
@@ -49,6 +53,10 @@ def build_plan(ticket_text: str) -> list[SupportAction]:
     ]
 
 
+def normalize_score(score: float) -> float:
+    return round(min(MAX_REPORTED_SCORE, max(MIN_REPORTED_SCORE, score)), 2)
+
+
 def run_task_trace(task_index: int) -> dict:
     env = SupportEnvironment()
     observation = env.reset_to_task(task_index)
@@ -69,7 +77,8 @@ def run_task_trace(task_index: int) -> dict:
         if observation.done:
             break
 
-    score = round(env.last_score if observation.done else env.cumulative_reward, 2)
+    raw_score = round(env.last_score if observation.done else env.cumulative_reward, 2)
+    score = normalize_score(raw_score)
     return {
         "task_key": f"task{task_index + 1}",
         "task_id": task["id"],
@@ -96,4 +105,4 @@ def evaluate_all_tasks_with_traces() -> list[dict]:
 
 def average_score(scores: Iterable[float] | OrderedDict[str, float]) -> float:
     values = list(scores.values()) if isinstance(scores, OrderedDict) else list(scores)
-    return round(sum(values) / len(values), 2) if values else 0.0
+    return normalize_score(sum(values) / len(values)) if values else MIN_REPORTED_SCORE

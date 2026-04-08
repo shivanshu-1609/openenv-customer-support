@@ -23,6 +23,9 @@ SCENARIO_NAMES = {
     "refund_denial",
 }
 
+MIN_REPORTED_SCORE = 0.01
+MAX_REPORTED_SCORE = 0.99
+
 CLASSIFIER_PROMPT = """
 You are classifying a customer support ticket for an OpenEnv evaluator.
 
@@ -118,6 +121,10 @@ def build_plan(ticket_text: str, scenario: str) -> list[SupportAction]:
     ]
 
 
+def normalize_score(score: float) -> float:
+    return round(min(MAX_REPORTED_SCORE, max(MIN_REPORTED_SCORE, score)), 2)
+
+
 def run_task_trace(client: OpenAI | None, task_index: int) -> dict:
     env = SupportEnvironment()
     observation = env.reset_to_task(task_index)
@@ -145,7 +152,8 @@ def run_task_trace(client: OpenAI | None, task_index: int) -> dict:
         if observation.done:
             break
 
-    score = round(env.last_score if observation.done else env.cumulative_reward, 2)
+    raw_score = round(env.last_score if observation.done else env.cumulative_reward, 2)
+    score = normalize_score(raw_score)
     return {
         "task_key": f"task{task_index + 1}",
         "task_id": task["id"],
