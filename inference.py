@@ -21,6 +21,8 @@ SCENARIO_NAMES = {
     "password_reset",
     "lost_order_refund",
     "refund_denial",
+    "damaged_item_refund",
+    "address_change_after_shipping",
 }
 
 MIN_REPORTED_SCORE = 0.01
@@ -30,12 +32,14 @@ CLASSIFIER_PROMPT = """
 You are classifying a customer support ticket for an OpenEnv evaluator.
 
 Return exactly one JSON object with this schema:
-{"scenario":"password_reset" | "lost_order_refund" | "refund_denial"}
+{"scenario":"password_reset" | "lost_order_refund" | "refund_denial" | "damaged_item_refund" | "address_change_after_shipping"}
 
 Choose:
 - password_reset: forgot password / reset password request
 - lost_order_refund: missing shipment / lost order that should be refunded
 - refund_denial: refund request that should be denied because policy window passed
+- damaged_item_refund: broken or damaged product delivered recently and eligible for refund
+- address_change_after_shipping: change-address request after shipment, must be declined and redirected to carrier
 """.strip()
 
 
@@ -54,6 +58,10 @@ def fallback_scenario(ticket_text: str) -> str:
     text = ticket_text.lower()
     if "password" in text:
         return "password_reset"
+    if "broken" in text or "damaged" in text or "arrived broken" in text:
+        return "damaged_item_refund"
+    if "change the shipping address" in text or ("address" in text and "shipped" in text):
+        return "address_change_after_shipping"
     if "supposed to arrive yesterday" in text or "lost in transit" in text:
         return "lost_order_refund"
     return "refund_denial"
@@ -111,12 +119,33 @@ def build_plan(ticket_text: str, scenario: str) -> list[SupportAction]:
             ),
         ]
 
+    if scenario == "refund_denial":
+        return [
+            SupportAction(action_type="query_db", query=order_id),
+            SupportAction(action_type="search_kb", query="subscription refund policy 14 days"),
+            SupportAction(
+                action_type="reply",
+                message="I cannot approve the refund because the purchase is outside the 14 day policy window.",
+            ),
+        ]
+
+    if scenario == "damaged_item_refund":
+        return [
+            SupportAction(action_type="query_db", query=order_id),
+            SupportAction(action_type="search_kb", query="damaged item refund policy"),
+            SupportAction(action_type="issue_refund", order_id=order_id),
+            SupportAction(
+                action_type="reply",
+                message="Your damaged item qualifies for a refund, and I have issued it for you.",
+            ),
+        ]
+
     return [
         SupportAction(action_type="query_db", query=order_id),
-        SupportAction(action_type="search_kb", query="refund policy"),
+        SupportAction(action_type="search_kb", query="address change shipped order policy"),
         SupportAction(
             action_type="reply",
-            message="I cannot approve the refund because the purchase was made more than 14 days ago.",
+            message="I cannot change the address because the order has already shipped, so please contact the carrier for rerouting.",
         ),
     ]
 

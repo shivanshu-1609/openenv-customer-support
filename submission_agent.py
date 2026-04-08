@@ -19,10 +19,14 @@ def _extract_order_id(ticket_text: str) -> str:
     return match.group(1) if match else ""
 
 
-def build_plan(ticket_text: str) -> list[SupportAction]:
-    text = ticket_text.lower()
+def normalize_score(score: float) -> float:
+    return round(min(MAX_REPORTED_SCORE, max(MIN_REPORTED_SCORE, score)), 2)
 
-    if "password" in text:
+
+def build_plan(ticket_text: str, scenario: str) -> list[SupportAction]:
+    order_id = _extract_order_id(ticket_text)
+
+    if scenario == "password_reset":
         return [
             SupportAction(action_type="search_kb", query="password reset"),
             SupportAction(
@@ -31,9 +35,7 @@ def build_plan(ticket_text: str) -> list[SupportAction]:
             ),
         ]
 
-    order_id = _extract_order_id(ticket_text)
-
-    if "supposed to arrive yesterday" in text:
+    if scenario == "lost_order_refund":
         return [
             SupportAction(action_type="query_db", query=order_id),
             SupportAction(action_type="issue_refund", order_id=order_id),
@@ -43,18 +45,35 @@ def build_plan(ticket_text: str) -> list[SupportAction]:
             ),
         ]
 
+    if scenario == "refund_denial":
+        return [
+            SupportAction(action_type="query_db", query=order_id),
+            SupportAction(action_type="search_kb", query="subscription refund policy 14 days"),
+            SupportAction(
+                action_type="reply",
+                message="I cannot approve the refund because the purchase is outside the 14 day policy window.",
+            ),
+        ]
+
+    if scenario == "damaged_item_refund":
+        return [
+            SupportAction(action_type="query_db", query=order_id),
+            SupportAction(action_type="search_kb", query="damaged item refund policy"),
+            SupportAction(action_type="issue_refund", order_id=order_id),
+            SupportAction(
+                action_type="reply",
+                message="Your damaged item qualifies for a refund, and I have issued it for you.",
+            ),
+        ]
+
     return [
         SupportAction(action_type="query_db", query=order_id),
-        SupportAction(action_type="search_kb", query="refund policy"),
+        SupportAction(action_type="search_kb", query="address change shipped order policy"),
         SupportAction(
             action_type="reply",
-            message="I cannot approve the refund because the purchase was made more than 14 days ago.",
+            message="I cannot change the address because the order has already shipped, so please contact the carrier for rerouting.",
         ),
     ]
-
-
-def normalize_score(score: float) -> float:
-    return round(min(MAX_REPORTED_SCORE, max(MIN_REPORTED_SCORE, score)), 2)
 
 
 def run_task_trace(task_index: int) -> dict:
@@ -63,7 +82,7 @@ def run_task_trace(task_index: int) -> dict:
     task = TASKS[task_index]
     steps: list[dict] = []
 
-    for action in build_plan(observation.ticket_text):
+    for action in build_plan(observation.ticket_text, task["scenario"]):
         observation = env.step(action)
         steps.append(
             {
@@ -94,13 +113,13 @@ def run_task(task_index: int) -> float:
 
 def evaluate_all_tasks() -> "OrderedDict[str, float]":
     scores: "OrderedDict[str, float]" = OrderedDict()
-    for task_index in range(3):
+    for task_index in range(len(TASKS)):
         scores[f"task{task_index + 1}"] = run_task(task_index)
     return scores
 
 
 def evaluate_all_tasks_with_traces() -> list[dict]:
-    return [run_task_trace(task_index) for task_index in range(3)]
+    return [run_task_trace(task_index) for task_index in range(len(TASKS))]
 
 
 def average_score(scores: Iterable[float] | OrderedDict[str, float]) -> float:
