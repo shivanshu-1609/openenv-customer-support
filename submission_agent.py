@@ -4,10 +4,10 @@ from typing import Iterable
 
 try:
     from .models import SupportAction
-    from .server.support_env_environment import SupportEnvironment
+    from .server.support_env_environment import SupportEnvironment, TASKS
 except ImportError:
     from models import SupportAction
-    from server.support_env_environment import SupportEnvironment
+    from server.support_env_environment import SupportEnvironment, TASKS
 
 
 def _extract_order_id(ticket_text: str) -> str:
@@ -49,16 +49,38 @@ def build_plan(ticket_text: str) -> list[SupportAction]:
     ]
 
 
-def run_task(task_index: int) -> float:
+def run_task_trace(task_index: int) -> dict:
     env = SupportEnvironment()
     observation = env.reset_to_task(task_index)
+    task = TASKS[task_index]
+    steps: list[dict] = []
 
     for action in build_plan(observation.ticket_text):
         observation = env.step(action)
+        steps.append(
+            {
+                "step": len(steps) + 1,
+                "action_type": action.action_type,
+                "reward": round(observation.reward, 2),
+                "done": observation.done,
+                "feedback": observation.last_action_feedback,
+            }
+        )
         if observation.done:
             break
 
-    return round(env.last_score if observation.done else env.cumulative_reward, 2)
+    score = round(env.last_score if observation.done else env.cumulative_reward, 2)
+    return {
+        "task_key": f"task{task_index + 1}",
+        "task_id": task["id"],
+        "difficulty": task["difficulty"],
+        "steps": steps,
+        "score": score,
+    }
+
+
+def run_task(task_index: int) -> float:
+    return run_task_trace(task_index)["score"]
 
 
 def evaluate_all_tasks() -> "OrderedDict[str, float]":
@@ -66,6 +88,10 @@ def evaluate_all_tasks() -> "OrderedDict[str, float]":
     for task_index in range(3):
         scores[f"task{task_index + 1}"] = run_task(task_index)
     return scores
+
+
+def evaluate_all_tasks_with_traces() -> list[dict]:
+    return [run_task_trace(task_index) for task_index in range(3)]
 
 
 def average_score(scores: Iterable[float] | OrderedDict[str, float]) -> float:
