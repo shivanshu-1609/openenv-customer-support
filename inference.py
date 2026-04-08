@@ -1,9 +1,26 @@
+import os
 import json
+
+from openai import OpenAI
 
 try:
     from .submission_agent import evaluate_all_tasks_with_traces
 except ImportError:
     from submission_agent import evaluate_all_tasks_with_traces
+
+
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Optional - if you use from_docker_image():
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+
+
+def build_openai_client() -> OpenAI:
+    if HF_TOKEN is None:
+        raise RuntimeError("HF_TOKEN is required for LLM-backed inference.")
+    return OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
 
 def main() -> None:
