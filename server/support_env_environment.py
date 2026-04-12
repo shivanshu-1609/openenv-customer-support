@@ -133,6 +133,9 @@ TASKS = [
 ]
 
 
+AVAILABLE_ACTIONS = ["search_kb", "query_db", "issue_refund", "reply"]
+
+
 def _contains_any(text: str, keywords: list[str]) -> bool:
     return any(keyword in text for keyword in keywords)
 
@@ -170,17 +173,39 @@ class SupportEnvironment(Environment):
         self.db_verified = False
         self.refund_issued = False
 
+    def _build_observation(self, task: dict, feedback: str, reward: float) -> SupportObservation:
+        remaining_steps = max(0, task["max_steps"] - self._state.step_count)
+        return SupportObservation(
+            ticket_id=task["id"],
+            difficulty=task["difficulty"],
+            ticket_text=task["ticket_text"],
+            available_actions=list(AVAILABLE_ACTIONS),
+            requires_policy_check=task.get("requires_kb", False),
+            requires_order_lookup=task.get("requires_db", False),
+            policy_checked=self.kb_verified,
+            order_verified=self.db_verified,
+            refund_issued=self.refund_issued,
+            remaining_steps=remaining_steps,
+            last_action_feedback=feedback,
+            done=self.done,
+            reward=round(reward, 2),
+            metadata={
+                "step": self._state.step_count,
+                "kb_verified": self.kb_verified,
+                "db_verified": self.db_verified,
+                "refund_issued": self.refund_issued,
+            },
+        )
+
     def reset(self) -> SupportObservation:
         self._reset_episode_state()
         self.task_idx = random.randint(0, len(TASKS) - 1)
         task = TASKS[self.task_idx]
 
-        return SupportObservation(
-            ticket_id=task["id"],
-            ticket_text=task["ticket_text"],
-            last_action_feedback="New ticket assigned. Gather evidence before taking an irreversible action.",
-            done=False,
-            reward=0.0,
+        return self._build_observation(
+            task,
+            "New ticket assigned. Gather evidence before taking an irreversible action.",
+            0.0,
         )
 
     def reset_to_task(self, task_idx: int) -> SupportObservation:
@@ -188,23 +213,16 @@ class SupportEnvironment(Environment):
         self.task_idx = task_idx
         task = TASKS[self.task_idx]
 
-        return SupportObservation(
-            ticket_id=task["id"],
-            ticket_text=task["ticket_text"],
-            last_action_feedback="New ticket assigned. Gather evidence before taking an irreversible action.",
-            done=False,
-            reward=0.0,
+        return self._build_observation(
+            task,
+            "New ticket assigned. Gather evidence before taking an irreversible action.",
+            0.0,
         )
 
     def step(self, action: SupportAction) -> SupportObservation:  # type: ignore[override]
         if self.done:
-            return SupportObservation(
-                ticket_id=TASKS[self.task_idx]["id"],
-                ticket_text="",
-                last_action_feedback="Episode already done.",
-                done=True,
-                reward=0.0,
-            )
+            task = TASKS[self.task_idx]
+            return self._build_observation(task, "Episode already done.", 0.0)
 
         self._state.step_count += 1
         reward = 0.0
@@ -287,23 +305,10 @@ class SupportEnvironment(Environment):
             feedback = "Max steps exceeded. The ticket was not resolved in time."
 
         self.cumulative_reward += reward
-        final_reward = round(reward, 2)
         if self.done:
             self.last_score = max(0.0, min(1.0, round(self.cumulative_reward, 2)))
 
-        return SupportObservation(
-            ticket_id=task["id"],
-            ticket_text=task["ticket_text"],
-            last_action_feedback=feedback,
-            done=self.done,
-            reward=final_reward,
-            metadata={
-                "step": self._state.step_count,
-                "kb_verified": self.kb_verified,
-                "db_verified": self.db_verified,
-                "refund_issued": self.refund_issued,
-            },
-        )
+        return self._build_observation(task, feedback, reward)
 
     @property
     def state(self) -> State:

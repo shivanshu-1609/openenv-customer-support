@@ -1,3 +1,6 @@
+spec_version: 1
 name: customer_support_env
-version: "1.0.0"
-description: Meta Hackathon Round 1 - Real-World Customer Support Environment
+type: space
+runtime: fastapi
+app: server.app:app
+port: 7860

@@ -11,8 +11,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "openenv-support_env"
 version = "0.1.0"
-description = "Support Env environment for OpenEnv"
+description = "OpenEnv customer support workflow benchmark with policy-aware grading"
 requires-python = ">=3.10"
+keywords = ["openenv", "customer-support", "agent-evaluation", "safety"]
 dependencies = [
     # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
     # install from github
